@@ -18,6 +18,8 @@ enum TokenType {
     MINUS,
     SEMICOLON,
     SLASH,
+    EQUAL,
+    EQUAL_EQUAL,
     EOF
 }
 
@@ -49,8 +51,8 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
     let mut tokens = Vec::new();
     let mut errors = Vec::new(); // Collect error messages
     let mut line = 1;
-
-    for ch in source.chars() {
+    let mut chars = source.chars().peekable();
+    while let Some(ch) = chars.next() {
         match ch {
             '(' => {
                 tokens.push(Token::new(
@@ -112,6 +114,15 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
             }
             '/' => {
               tokens.push(Token::new(TokenType::SLASH,"/".to_string(),line));
+            }
+            '=' => {
+              if chars.peek() == Some(&'=') {
+                chars.next();
+                tokens.push(Token::new(TokenType::EQUAL_EQUAL,"==".to_string(),line));
+              } 
+              else {
+                tokens.push(Token::new(TokenType::EQUAL,"=".to_string(),line));
+              }
             }
             '\n' => {
                 line += 1;
