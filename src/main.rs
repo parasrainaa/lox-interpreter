@@ -44,22 +44,25 @@ impl Token {
     }
 }
 
-fn scan_source(source: &str) -> Vec<Token> {
+// Returns tokens and a vector of error messages.
+fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
     let mut tokens = Vec::new();
-    let mut line = 1; 
+    let mut errors = Vec::new(); // Collect error messages
+    let mut line = 1;
+
     for ch in source.chars() {
         match ch {
             '(' => {
                 tokens.push(Token::new(
                     TokenType::LEFT_PAREN,
-                    "(".to_string(), // The lexeme is just "("
+                    "(".to_string(),
                     line,
                 ));
             }
             ')' => {
                 tokens.push(Token::new(
                     TokenType::RIGHT_PAREN,
-                    ")".to_string(), // The lexeme is just ")"
+                    ")".to_string(),
                     line,
                 ));
             }
@@ -114,9 +117,12 @@ fn scan_source(source: &str) -> Vec<Token> {
                 line += 1;
             }
             ' ' | '\r' | '\t' => {
+                // Ignore whitespace
             }
             _ => {
-                println!("[line {}] Ignoring unexpected character: {}", line, ch);
+                // Collect error message for unexpected characters
+                let error_message = format!("[line {}] Error: Unexpected character: {}", line, ch);
+                errors.push(error_message);
             }
         }
     }
@@ -126,7 +132,7 @@ fn scan_source(source: &str) -> Vec<Token> {
         line,
     ));
 
-    tokens 
+    (tokens, errors)
 }
 
 fn main() {
@@ -150,10 +156,22 @@ fn main() {
             };
 
             // Call our scanner function!
-            let tokens = scan_source(&file_contents);
+            let (tokens, errors) = scan_source(&file_contents);
+
+            // Print valid tokens to stdout
             for token in tokens {
                  // Format: TYPE lexeme literal (using "null" for literal as required)
                 println!("{} {} null", token.token_type, token.lexeme);
+            }
+
+            // Print errors to stderr
+            for error in &errors { // Iterate over borrowed errors
+                eprintln!("{}", error);
+            }
+
+            // Exit with code 65 if errors occurred
+            if !errors.is_empty() { 
+                process::exit(65); // Exit code 65: data format error
             }
         }
         _ => {
