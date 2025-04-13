@@ -1,0 +1,11 @@
+{
+    "editor.acceptSuggestionOnCommitCharacter": false,
+    "editor.acceptSuggestionOnEnter": "off",
+    "editor.inlineSuggest.enabled": false,
+    "cody.suggestions.mode": "off",
+    "augment.completions.enableQuickSuggestions": false,
+    "augment.nextEdit.enableBackgroundSuggestions": false,
+    "github.copilot.chat.edits.suggestRelatedFilesForTests": false,
+    "github.copilot.chat.edits.suggestRelatedFilesFromGitHistory": false,
+    "html.suggest.html5": false
+}
