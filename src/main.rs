@@ -11,6 +11,13 @@ enum TokenType {
     RIGHT_PAREN, 
     LEFT_BRACE,
     RIGHT_BRACE,
+    STAR,
+    DOT,
+    COMMA,
+    PLUS,
+    MINUS,
+    SEMICOLON,
+    SLASH,
     EOF
 }
 
@@ -69,6 +76,39 @@ fn scan_source(source: &str) -> Vec<Token> {
                 "}".to_string(),
                 line,
               ));
+            }
+            ',' => {
+              tokens.push(Token::new(
+                TokenType::COMMA,
+                ",".to_string(),
+                line
+              ));
+            }
+            '*' => {
+              tokens.push(Token::new(
+                TokenType::STAR,
+                "*".to_string(),
+                line
+              ));
+            }
+            '+' => {
+              tokens.push(Token::new(
+                TokenType::PLUS,
+                "+".to_string(),
+                line,
+              ));
+            }
+            '-' => {
+              tokens.push(Token::new(TokenType::MINUS, "-".to_string(), line));
+            }
+            '.' => {
+              tokens.push(Token::new(TokenType::DOT,".".to_string(),line));
+            }
+            ';' => {
+              tokens.push(Token::new(TokenType::SEMICOLON,";".to_string(),line));
+            }
+            '/' => {
+              tokens.push(Token::new(TokenType::SLASH,"/".to_string(),line));
             }
             '\n' => {
                 line += 1;
