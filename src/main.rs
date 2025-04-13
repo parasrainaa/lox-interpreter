@@ -9,6 +9,8 @@ use std::process; // For exiting gracefully
 enum TokenType {
     LEFT_PAREN,  
     RIGHT_PAREN, 
+    LEFT_BRACE,
+    RIGHT_BRACE,
     EOF
 }
 
@@ -53,6 +55,20 @@ fn scan_source(source: &str) -> Vec<Token> {
                     ")".to_string(), // The lexeme is just ")"
                     line,
                 ));
+            }
+            '{' => {
+              tokens.push(Token::new(
+                TokenType::LEFT_BRACE,
+                "{".to_string(),
+                line
+              ));
+            }
+            '}' => {
+              tokens.push(Token::new(
+                TokenType::RIGHT_BRACE,
+                "}".to_string(),
+                line,
+              ));
             }
             '\n' => {
                 line += 1;
