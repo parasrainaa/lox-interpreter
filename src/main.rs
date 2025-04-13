@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::fmt; // Add this import
 use std::io::{self, Write};
 use std::process; // For exiting gracefully
 
@@ -9,6 +10,12 @@ enum TokenType {
     LEFT_PAREN,  
     RIGHT_PAREN, 
     EOF
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self) // Use Debug format for the type name string
+    }
 }
 
 #[derive(Debug, Clone)] // Added Clone
@@ -88,11 +95,10 @@ fn main() {
 
             // Call our scanner function!
             let tokens = scan_source(&file_contents);
-            println!("--- Tokens ---");
             for token in tokens {
-                println!("{:?}", token); // {:?} uses the Debug trait we derived
+                 // Format: TYPE lexeme literal (using "null" for literal as required)
+                println!("{} {} null", token.token_type, token.lexeme);
             }
-            println!("--------------");
         }
         _ => {
             eprintln!("Unknown command: {}", command);
