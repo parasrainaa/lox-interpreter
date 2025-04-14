@@ -22,6 +22,10 @@ enum TokenType {
     EQUAL_EQUAL,
     BANG,
     BANG_EQUAL,
+    LESS,
+    LESS_EQUAL,
+    GREATER,
+    GREATER_EQUAL,
     EOF
 }
 
@@ -133,6 +137,24 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
               }
               else{
                 tokens.push(Token::new(TokenType::BANG,"!".to_string(),line)); 
+              }
+            }
+            '<' => {
+              if chars.peek()== Some(&'='){
+                chars.next();
+                tokens.push(Token::new(TokenType::LESS_EQUAL,"<=".to_string(),line));
+              }
+              else{
+                tokens.push(Token::new(TokenType::LESS,"<".to_string(),line));
+              }
+            }
+            '>' => {
+              if chars.peek() == Some(&'='){
+                chars.next();
+                tokens.push(Token::new(TokenType::GREATER_EQUAL,">=".to_string(),line));
+              }
+              else{
+                tokens.push(Token::new(TokenType::GREATER,">".to_string(),line));
               }
             }
             '\n' => {
