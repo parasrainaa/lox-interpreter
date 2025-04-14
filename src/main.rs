@@ -26,6 +26,7 @@ enum TokenType {
     LESS_EQUAL,
     GREATER,
     GREATER_EQUAL,
+    STRING,
     EOF,
 }
 
@@ -135,6 +136,25 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
                     tokens.push(Token::new(TokenType::GREATER, ">".to_string(), line));
                 }
             }
+            '"' => {
+                let mut lexeme = String::from("\"");
+                let mut literal = String::new();
+                let start_line = line;
+                while let Some(next_ch) = chars.next() {
+                    lexeme.push(next_ch);
+                    if next_ch == '\n' {
+                        line += 1;
+                    }
+                    if next_ch == '"' {
+                        tokens.push(Token::new(TokenType::STRING, lexeme.clone(), start_line));
+                        break;
+                    }
+                    literal.push(next_ch);
+                }
+                if lexeme.chars().last() != Some('"') {
+                    errors.push(format!("[line {}] Error: Unterminated string.", start_line));
+                }
+            }
             '\n' => {
                 line += 1;
             }
@@ -178,8 +198,12 @@ fn main() {
 
             // Print valid tokens to stdout
             for token in tokens {
-                // Format: TYPE lexeme literal (using "null" for literal as required)
-                println!("{} {} null", token.token_type, token.lexeme);
+                if token.token_type == TokenType::STRING {
+                    let literal = token.lexeme[1..token.lexeme.len()-1].to_string();
+                    println!("{} {} {}", token.token_type, token.lexeme, literal);
+                } else {
+                    println!("{} {} null", token.token_type, token.lexeme);
+                }
             }
 
             // Print errors to stderr
