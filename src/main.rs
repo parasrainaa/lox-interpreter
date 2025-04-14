@@ -1,14 +1,14 @@
 use std::env;
-use std::fs;
 use std::fmt; // Add this import
+use std::fs;
 use std::io::{self, Write};
 use std::process; // For exiting gracefully
 
 // Using standard Rust naming convention (PascalCase for enums/structs)
-#[derive(Debug, Clone, PartialEq)] 
+#[derive(Debug, Clone, PartialEq)]
 enum TokenType {
-    LEFT_PAREN,  
-    RIGHT_PAREN, 
+    LEFT_PAREN,
+    RIGHT_PAREN,
     LEFT_BRACE,
     RIGHT_BRACE,
     STAR,
@@ -26,7 +26,7 @@ enum TokenType {
     LESS_EQUAL,
     GREATER,
     GREATER_EQUAL,
-    EOF
+    EOF,
 }
 
 impl fmt::Display for TokenType {
@@ -61,101 +61,79 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
     while let Some(ch) = chars.next() {
         match ch {
             '(' => {
-                tokens.push(Token::new(
-                    TokenType::LEFT_PAREN,
-                    "(".to_string(),
-                    line,
-                ));
+                tokens.push(Token::new(TokenType::LEFT_PAREN, "(".to_string(), line));
             }
             ')' => {
-                tokens.push(Token::new(
-                    TokenType::RIGHT_PAREN,
-                    ")".to_string(),
-                    line,
-                ));
+                tokens.push(Token::new(TokenType::RIGHT_PAREN, ")".to_string(), line));
             }
             '{' => {
-              tokens.push(Token::new(
-                TokenType::LEFT_BRACE,
-                "{".to_string(),
-                line
-              ));
+                tokens.push(Token::new(TokenType::LEFT_BRACE, "{".to_string(), line));
             }
             '}' => {
-              tokens.push(Token::new(
-                TokenType::RIGHT_BRACE,
-                "}".to_string(),
-                line,
-              ));
+                tokens.push(Token::new(TokenType::RIGHT_BRACE, "}".to_string(), line));
             }
             ',' => {
-              tokens.push(Token::new(
-                TokenType::COMMA,
-                ",".to_string(),
-                line
-              ));
+                tokens.push(Token::new(TokenType::COMMA, ",".to_string(), line));
             }
             '*' => {
-              tokens.push(Token::new(
-                TokenType::STAR,
-                "*".to_string(),
-                line
-              ));
+                tokens.push(Token::new(TokenType::STAR, "*".to_string(), line));
             }
             '+' => {
-              tokens.push(Token::new(
-                TokenType::PLUS,
-                "+".to_string(),
-                line,
-              ));
+                tokens.push(Token::new(TokenType::PLUS, "+".to_string(), line));
             }
             '-' => {
-              tokens.push(Token::new(TokenType::MINUS, "-".to_string(), line));
+                tokens.push(Token::new(TokenType::MINUS, "-".to_string(), line));
             }
             '.' => {
-              tokens.push(Token::new(TokenType::DOT,".".to_string(),line));
+                tokens.push(Token::new(TokenType::DOT, ".".to_string(), line));
             }
             ';' => {
-              tokens.push(Token::new(TokenType::SEMICOLON,";".to_string(),line));
+                tokens.push(Token::new(TokenType::SEMICOLON, ";".to_string(), line));
             }
             '/' => {
-              tokens.push(Token::new(TokenType::SLASH,"/".to_string(),line));
+                if chars.peek() == Some(&'/') {
+                    chars.next();
+                    while let Some(next_ch) = chars.next() {
+                        if next_ch == '\n' {
+                            line += 1;
+                            break;
+                        }
+                    }
+                } else {
+                    tokens.push(Token::new(TokenType::SLASH, "/".to_string(), line));
+                }
             }
             '=' => {
-              if chars.peek() == Some(&'=') {
-                chars.next();
-                tokens.push(Token::new(TokenType::EQUAL_EQUAL,"==".to_string(),line));
-              } 
-              else {
-                tokens.push(Token::new(TokenType::EQUAL,"=".to_string(),line));
-              }
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::new(TokenType::EQUAL_EQUAL, "==".to_string(), line));
+                } else {
+                    tokens.push(Token::new(TokenType::EQUAL, "=".to_string(), line));
+                }
             }
             '!' => {
-              if chars.peek() == Some(&'='){
-                chars.next();
-                tokens.push(Token::new(TokenType::BANG_EQUAL,"!=".to_string(),line));
-              }
-              else{
-                tokens.push(Token::new(TokenType::BANG,"!".to_string(),line)); 
-              }
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::new(TokenType::BANG_EQUAL, "!=".to_string(), line));
+                } else {
+                    tokens.push(Token::new(TokenType::BANG, "!".to_string(), line));
+                }
             }
             '<' => {
-              if chars.peek()== Some(&'='){
-                chars.next();
-                tokens.push(Token::new(TokenType::LESS_EQUAL,"<=".to_string(),line));
-              }
-              else{
-                tokens.push(Token::new(TokenType::LESS,"<".to_string(),line));
-              }
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::new(TokenType::LESS_EQUAL, "<=".to_string(), line));
+                } else {
+                    tokens.push(Token::new(TokenType::LESS, "<".to_string(), line));
+                }
             }
             '>' => {
-              if chars.peek() == Some(&'='){
-                chars.next();
-                tokens.push(Token::new(TokenType::GREATER_EQUAL,">=".to_string(),line));
-              }
-              else{
-                tokens.push(Token::new(TokenType::GREATER,">".to_string(),line));
-              }
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::new(TokenType::GREATER_EQUAL, ">=".to_string(), line));
+                } else {
+                    tokens.push(Token::new(TokenType::GREATER, ">".to_string(), line));
+                }
             }
             '\n' => {
                 line += 1;
@@ -170,11 +148,7 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
             }
         }
     }
-    tokens.push(Token::new(
-        TokenType::EOF,
-        "".to_string(),
-        line,
-    ));
+    tokens.push(Token::new(TokenType::EOF, "".to_string(), line));
 
     (tokens, errors)
 }
@@ -204,17 +178,18 @@ fn main() {
 
             // Print valid tokens to stdout
             for token in tokens {
-                 // Format: TYPE lexeme literal (using "null" for literal as required)
+                // Format: TYPE lexeme literal (using "null" for literal as required)
                 println!("{} {} null", token.token_type, token.lexeme);
             }
 
             // Print errors to stderr
-            for error in &errors { // Iterate over borrowed errors
+            for error in &errors {
+                // Iterate over borrowed errors
                 eprintln!("{}", error);
             }
 
             // Exit with code 65 if errors occurred
-            if !errors.is_empty() { 
+            if !errors.is_empty() {
                 process::exit(65); // Exit code 65: data format error
             }
         }
