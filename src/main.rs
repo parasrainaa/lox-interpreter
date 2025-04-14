@@ -138,7 +138,6 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
             }
             '"' => {
                 let mut lexeme = String::from("\"");
-                let mut literal = String::new();
                 let start_line = line;
                 while let Some(next_ch) = chars.next() {
                     lexeme.push(next_ch);
@@ -149,7 +148,6 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
                         tokens.push(Token::new(TokenType::STRING, lexeme.clone(), start_line));
                         break;
                     }
-                    literal.push(next_ch);
                 }
                 if lexeme.chars().last() != Some('"') {
                     errors.push(format!("[line {}] Error: Unterminated string.", start_line));
