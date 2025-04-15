@@ -27,6 +27,7 @@ enum TokenType {
     GREATER,
     GREATER_EQUAL,
     STRING,
+    NUMBER,
     EOF,
 }
 
@@ -36,19 +37,28 @@ impl fmt::Display for TokenType {
     }
 }
 
+// Define possible literal values
+#[derive(Debug, Clone, PartialEq)]
+enum LiteralValue {
+    Number(String),
+    String(String),
+}
+
 #[derive(Debug, Clone)] // Added Clone
 struct Token {
     token_type: TokenType,
     lexeme: String,
     line: usize,
+    literal: Option<LiteralValue>,
 }
 
 impl Token {
-    fn new(token_type: TokenType, lexeme: String, line: usize) -> Self {
+    fn new(token_type: TokenType, lexeme: String, line: usize, literal: Option<LiteralValue>) -> Self {
         Token {
             token_type,
             lexeme,
             line,
+            literal,
         }
     }
 }
@@ -62,34 +72,34 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
     while let Some(ch) = chars.next() {
         match ch {
             '(' => {
-                tokens.push(Token::new(TokenType::LEFT_PAREN, "(".to_string(), line));
+                tokens.push(Token::new(TokenType::LEFT_PAREN, "(".to_string(), line, None));
             }
             ')' => {
-                tokens.push(Token::new(TokenType::RIGHT_PAREN, ")".to_string(), line));
+                tokens.push(Token::new(TokenType::RIGHT_PAREN, ")".to_string(), line, None));
             }
             '{' => {
-                tokens.push(Token::new(TokenType::LEFT_BRACE, "{".to_string(), line));
+                tokens.push(Token::new(TokenType::LEFT_BRACE, "{".to_string(), line, None));
             }
             '}' => {
-                tokens.push(Token::new(TokenType::RIGHT_BRACE, "}".to_string(), line));
+                tokens.push(Token::new(TokenType::RIGHT_BRACE, "}".to_string(), line, None));
             }
             ',' => {
-                tokens.push(Token::new(TokenType::COMMA, ",".to_string(), line));
+                tokens.push(Token::new(TokenType::COMMA, ",".to_string(), line, None));
             }
             '*' => {
-                tokens.push(Token::new(TokenType::STAR, "*".to_string(), line));
+                tokens.push(Token::new(TokenType::STAR, "*".to_string(), line, None));
             }
             '+' => {
-                tokens.push(Token::new(TokenType::PLUS, "+".to_string(), line));
+                tokens.push(Token::new(TokenType::PLUS, "+".to_string(), line, None));
             }
             '-' => {
-                tokens.push(Token::new(TokenType::MINUS, "-".to_string(), line));
+                tokens.push(Token::new(TokenType::MINUS, "-".to_string(), line, None));
             }
             '.' => {
-                tokens.push(Token::new(TokenType::DOT, ".".to_string(), line));
+                tokens.push(Token::new(TokenType::DOT, ".".to_string(), line, None));
             }
             ';' => {
-                tokens.push(Token::new(TokenType::SEMICOLON, ";".to_string(), line));
+                tokens.push(Token::new(TokenType::SEMICOLON, ";".to_string(), line, None));
             }
             '/' => {
                 if chars.peek() == Some(&'/') {
@@ -101,55 +111,62 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
                         }
                     }
                 } else {
-                    tokens.push(Token::new(TokenType::SLASH, "/".to_string(), line));
+                    tokens.push(Token::new(TokenType::SLASH, "/".to_string(), line, None));
                 }
             }
             '=' => {
                 if chars.peek() == Some(&'=') {
                     chars.next();
-                    tokens.push(Token::new(TokenType::EQUAL_EQUAL, "==".to_string(), line));
+                    tokens.push(Token::new(TokenType::EQUAL_EQUAL, "==".to_string(), line, None));
                 } else {
-                    tokens.push(Token::new(TokenType::EQUAL, "=".to_string(), line));
+                    tokens.push(Token::new(TokenType::EQUAL, "=".to_string(), line, None));
                 }
             }
             '!' => {
                 if chars.peek() == Some(&'=') {
                     chars.next();
-                    tokens.push(Token::new(TokenType::BANG_EQUAL, "!=".to_string(), line));
+                    tokens.push(Token::new(TokenType::BANG_EQUAL, "!=".to_string(), line, None));
                 } else {
-                    tokens.push(Token::new(TokenType::BANG, "!".to_string(), line));
+                    tokens.push(Token::new(TokenType::BANG, "!".to_string(), line, None));
                 }
             }
             '<' => {
                 if chars.peek() == Some(&'=') {
                     chars.next();
-                    tokens.push(Token::new(TokenType::LESS_EQUAL, "<=".to_string(), line));
+                    tokens.push(Token::new(TokenType::LESS_EQUAL, "<=".to_string(), line, None));
                 } else {
-                    tokens.push(Token::new(TokenType::LESS, "<".to_string(), line));
+                    tokens.push(Token::new(TokenType::LESS, "<".to_string(), line, None));
                 }
             }
             '>' => {
                 if chars.peek() == Some(&'=') {
                     chars.next();
-                    tokens.push(Token::new(TokenType::GREATER_EQUAL, ">=".to_string(), line));
+                    tokens.push(Token::new(TokenType::GREATER_EQUAL, ">=".to_string(), line, None));
                 } else {
-                    tokens.push(Token::new(TokenType::GREATER, ">".to_string(), line));
+                    tokens.push(Token::new(TokenType::GREATER, ">".to_string(), line, None));
                 }
             }
             '"' => {
                 let mut lexeme = String::from("\"");
+                let mut content = String::new();
                 let start_line = line;
+                let mut terminated = false;
+
                 while let Some(next_ch) = chars.next() {
                     lexeme.push(next_ch);
+                    if next_ch == '"' {
+                        terminated = true;
+                        break;
+                    }
                     if next_ch == '\n' {
                         line += 1;
                     }
-                    if next_ch == '"' {
-                        tokens.push(Token::new(TokenType::STRING, lexeme.clone(), start_line));
-                        break;
-                    }
+                    content.push(next_ch);
                 }
-                if lexeme.chars().last() != Some('"') {
+
+                if terminated {
+                    tokens.push(Token::new(TokenType::STRING, lexeme, start_line, Some(LiteralValue::String(content))));
+                } else {
                     errors.push(format!("[line {}] Error: Unterminated string.", start_line));
                 }
             }
@@ -159,14 +176,70 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
             ' ' | '\r' | '\t' => {
                 // Ignore whitespace
             }
+            _ if ch.is_ascii_digit() => {
+                let mut number_str = String::new();
+                number_str.push(ch);
+
+                while let Some(&peek_ch) = chars.peek() {
+                    if peek_ch.is_ascii_digit() {
+                        number_str.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut has_decimal = false;
+                if let Some(&'.') = chars.peek() {
+                    let mut next_chars = chars.clone();
+                    if let Some('.') = next_chars.next() {
+                        if let Some(digit_after_dot) = next_chars.peek() {
+                            if digit_after_dot.is_ascii_digit() {
+                                number_str.push(chars.next().unwrap());
+                                has_decimal = true;
+                                while let Some(&peek_ch) = chars.peek() {
+                                    if peek_ch.is_ascii_digit() {
+                                        number_str.push(chars.next().unwrap());
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Format the literal value as required
+                let literal = if has_decimal {
+                    if let Some(dot_pos) = number_str.find('.') {
+                        let (int_part, frac_part) = number_str.split_at(dot_pos);
+                        let mut frac = &frac_part[1..]; // skip the '.'
+                        frac = frac.trim_end_matches('0');
+                        if frac.is_empty() {
+                            format!("{}.0", int_part)
+                        } else {
+                            format!("{}.{}", int_part, frac)
+                        }
+                    } else {
+                        format!("{}.0", number_str)
+                    }
+                } else {
+                    format!("{}.0", number_str)
+                };
+
+                tokens.push(Token::new(
+                    TokenType::NUMBER,
+                    number_str,
+                    line,
+                    Some(LiteralValue::Number(literal)),
+                ));
+            }
             _ => {
-                // Collect error message for unexpected characters
                 let error_message = format!("[line {}] Error: Unexpected character: {}", line, ch);
                 errors.push(error_message);
             }
         }
     }
-    tokens.push(Token::new(TokenType::EOF, "".to_string(), line));
+    tokens.push(Token::new(TokenType::EOF, "".to_string(), line, None));
 
     (tokens, errors)
 }
@@ -191,28 +264,28 @@ fn main() {
                 }
             };
 
-            // Call our scanner function!
             let (tokens, errors) = scan_source(&file_contents);
 
-            // Print valid tokens to stdout
             for token in tokens {
-                if token.token_type == TokenType::STRING {
-                    let literal = token.lexeme[1..token.lexeme.len()-1].to_string();
-                    println!("{} {} {}", token.token_type, token.lexeme, literal);
-                } else {
-                    println!("{} {} null", token.token_type, token.lexeme);
+                match token.literal {
+                    Some(LiteralValue::Number(ref n)) => {
+                        println!("{} {} {}", token.token_type, token.lexeme, n);
+                    }
+                    Some(LiteralValue::String(ref s)) => {
+                        println!("{} {} {}", token.token_type, token.lexeme, s);
+                    }
+                    None => {
+                        println!("{} {} null", token.token_type, token.lexeme);
+                    }
                 }
             }
 
-            // Print errors to stderr
             for error in &errors {
-                // Iterate over borrowed errors
                 eprintln!("{}", error);
             }
 
-            // Exit with code 65 if errors occurred
             if !errors.is_empty() {
-                process::exit(65); // Exit code 65: data format error
+                process::exit(65);
             }
         }
         _ => {
