@@ -3,6 +3,8 @@ use std::fmt; // Add this import
 use std::fs;
 use std::io::{self, Write};
 use std::process; // For exiting gracefully
+use phf::Map;
+use phf_macros::phf_map;
 
 // Using standard Rust naming convention (PascalCase for enums/structs)
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +31,44 @@ enum TokenType {
     STRING,
     NUMBER,
     EOF,
+    AND,
+    CLASS,
+    ELSE,
+    FALSE,
+    FOR,
+    FUN,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    SUPER,
+    THIS,
+    TRUE,
+    VAR,
+    WHILE,
+    IDENTIFIER,
 }
+
+// Static map for reserved keywords
+static KEYWORDS: Map<&'static str, TokenType> = phf_map! {
+    "and" => TokenType::AND,
+    "class" => TokenType::CLASS,
+    "else" => TokenType::ELSE,
+    "false" => TokenType::FALSE,
+    "for" => TokenType::FOR,
+    "fun" => TokenType::FUN,
+    "if" => TokenType::IF,
+    "nil" => TokenType::NIL,
+    "or" => TokenType::OR,
+    "print" => TokenType::PRINT,
+    "return" => TokenType::RETURN,
+    "super" => TokenType::SUPER,
+    "this" => TokenType::THIS,
+    "true" => TokenType::TRUE,
+    "var" => TokenType::VAR,
+    "while" => TokenType::WHILE,
+};
 
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -176,63 +215,86 @@ fn scan_source(source: &str) -> (Vec<Token>, Vec<String>) {
             ' ' | '\r' | '\t' => {
                 // Ignore whitespace
             }
-            _ if ch.is_ascii_digit() => {
-                let mut number_str = String::new();
-                number_str.push(ch);
+            // Handle Identifiers and Keywords
+            _ if ch.is_ascii_alphabetic() || ch == '_' => {
+                let mut identifier = String::new();
+                identifier.push(ch);
 
+                // Consume the rest of the identifier
                 while let Some(&peek_ch) = chars.peek() {
-                    if peek_ch.is_ascii_digit() {
-                        number_str.push(chars.next().unwrap());
+                    if peek_ch.is_ascii_alphanumeric() || peek_ch == '_' {
+                        identifier.push(chars.next().unwrap());
                     } else {
-                        break;
+                        break; 
                     }
                 }
 
-                let mut has_decimal = false;
-                if let Some(&'.') = chars.peek() {
-                    let mut next_chars = chars.clone();
-                    if let Some('.') = next_chars.next() {
-                        if let Some(digit_after_dot) = next_chars.peek() {
-                            if digit_after_dot.is_ascii_digit() {
-                                number_str.push(chars.next().unwrap());
-                                has_decimal = true;
-                                while let Some(&peek_ch) = chars.peek() {
-                                    if peek_ch.is_ascii_digit() {
-                                        number_str.push(chars.next().unwrap());
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Format the literal value as required
-                let literal = if has_decimal {
-                    if let Some(dot_pos) = number_str.find('.') {
-                        let (int_part, frac_part) = number_str.split_at(dot_pos);
-                        let mut frac = &frac_part[1..]; // skip the '.'
-                        frac = frac.trim_end_matches('0');
-                        if frac.is_empty() {
-                            format!("{}.0", int_part)
-                        } else {
-                            format!("{}.{}", int_part, frac)
-                        }
-                    } else {
-                        format!("{}.0", number_str)
-                    }
-                } else {
-                    format!("{}.0", number_str)
-                };
-
-                tokens.push(Token::new(
-                    TokenType::NUMBER,
-                    number_str,
-                    line,
-                    Some(LiteralValue::Number(literal)),
-                ));
+                // Check if it's a keyword or an identifier
+                let token_type = KEYWORDS.get(&identifier)
+                                      .cloned()
+                                      .unwrap_or(TokenType::IDENTIFIER);
+                
+                tokens.push(Token::new(token_type, identifier, line, None));
             }
+            // Handle Numbers
+            _ if ch.is_ascii_digit() => {
+                 let mut number_str = String::new();
+                 number_str.push(ch);
+ 
+                 while let Some(&peek_ch) = chars.peek() {
+                     if peek_ch.is_ascii_digit() {
+                         number_str.push(chars.next().unwrap());
+                     } else {
+                         break;
+                     }
+                 }
+
+                 let mut has_decimal = false;
+                 if let Some(&'.') = chars.peek() {
+                     let mut next_chars = chars.clone();
+                     if let Some('.') = next_chars.next() {
+                         if let Some(digit_after_dot) = next_chars.peek() {
+                             if digit_after_dot.is_ascii_digit() {
+                                 number_str.push(chars.next().unwrap());
+                                 has_decimal = true;
+                                 while let Some(&peek_ch) = chars.peek() {
+                                     if peek_ch.is_ascii_digit() {
+                                         number_str.push(chars.next().unwrap());
+                                     } else {
+                                         break;
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+
+                 // Format the literal value as required
+                 let literal = if has_decimal {
+                     if let Some(dot_pos) = number_str.find('.') {
+                         let (int_part, frac_part) = number_str.split_at(dot_pos);
+                         let mut frac = &frac_part[1..]; // skip the '.'
+                         frac = frac.trim_end_matches('0');
+                         if frac.is_empty() {
+                             format!("{}.0", int_part)
+                         } else {
+                             format!("{}.{}", int_part, frac)
+                         }
+                     } else {
+                         format!("{}.0", number_str)
+                     }
+                 } else {
+                     format!("{}.0", number_str)
+                 };
+
+                 tokens.push(Token::new(
+                     TokenType::NUMBER,
+                     number_str,
+                     line,
+                     Some(LiteralValue::Number(literal)),
+                 ));
+             }
+            // Handle unexpected characters
             _ => {
                 let error_message = format!("[line {}] Error: Unexpected character: {}", line, ch);
                 errors.push(error_message);
