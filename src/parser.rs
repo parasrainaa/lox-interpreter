@@ -78,7 +78,7 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
         if let Some(token) = self.advance() {
-            let current_line = token.line; // Line of the token being processed
+            let current_line = token.line; 
             match token.token_type {
                 TokenType::FALSE => Ok(Expr::Literal(AstLiteralValue::Boolean(false))),
                 TokenType::TRUE => Ok(Expr::Literal(AstLiteralValue::Boolean(true))),
@@ -107,6 +107,31 @@ impl Parser {
                         }),
                     }
                 },
+                TokenType::LEFT_PAREN => {
+                    // Parse the expression inside the parens
+                    let inner = self.primary()?;
+            
+                    // Then we must see a RIGHT_PAREN
+                    match self.advance() {
+                        Some(t) if t.token_type == TokenType::RIGHT_PAREN => {
+                            Ok(Expr::Grouping(Box::new(inner)))
+                        }
+                        Some(t) => {
+                            // Found some other token instead of ')'
+                            Err(ParseError::UnexpectedToken {
+                                expected: "RIGHT_PAREN".to_string(),
+                                found: format!("{:?}", t.token_type),
+                                line: t.line,
+                            })
+                        }
+                        None => {
+                            // Ran out of tokens entirely
+                            Err(ParseError::UnexpectedEndOfInput {
+                                line: self.last_consumed_token_line,
+                            })
+                        }
+                    }
+                }
                 TokenType::EOF => {
                     // This means an expression was expected, but we found EOF instead.
                     Err(ParseError::UnexpectedEndOfInput { line: current_line })
