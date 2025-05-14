@@ -131,7 +131,12 @@ impl Parser {
                             })
                         }
                     }
-                }
+                },
+                TokenType::BANG | TokenType::MINUS => {
+                    let operator = token.clone();
+                    let operand = self.primary()?;
+                    Ok(Expr::Unary(operator, Box::new(operand)));
+                },
                 TokenType::EOF => {
                     // This means an expression was expected, but we found EOF instead.
                     Err(ParseError::UnexpectedEndOfInput { line: current_line })

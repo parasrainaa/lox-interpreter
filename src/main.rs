@@ -18,13 +18,13 @@ fn main() {
     let command = &args[1];
     let filename = &args[2];
 
-    let file_contents = match fs::read_to_string(filename) {
-        Ok(contents) => contents,
-        Err(e) => {
-            eprintln!("Failed to read file '{}': {}", filename, e);
-            process::exit(74); 
-        }
-    };
+            let file_contents = match fs::read_to_string(filename) {
+                Ok(contents) => contents,
+                Err(e) => {
+                    eprintln!("Failed to read file '{}': {}", filename, e);
+                    process::exit(74);
+                }
+            };
 
     let (tokens, scanner_errors) = scanner::scan_source(&file_contents);
 
