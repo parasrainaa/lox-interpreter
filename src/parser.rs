@@ -174,7 +174,7 @@ impl Parser {
                 },
                 TokenType::LEFT_PAREN => {
                     // Parse the full expression inside the parens (including binary ops)
-                    let inner = self.parse_addition()?;
+                    let inner = self.parse_equality()?;
 
                     // Then we must see a RIGHT_PAREN
                     match self.advance() {
