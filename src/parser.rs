@@ -58,7 +58,7 @@ impl Parser {
 
     /// Entry‐point: start at the lowest‐precedence level
     pub fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.parse_addition()?;          // ← NEW: delegate to addition level
+        let expr = self.parse_comparison()?;          // ← NEW: delegate to addition level
         // … then your EOF check exactly as you have it now …
         if let Some(token) = self.peek() {
             if token.token_type != TokenType::EOF {
