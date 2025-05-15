@@ -14,13 +14,13 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::UnexpectedToken { expected, found, line } => 
+            ParseError::UnexpectedToken { expected, found, line } =>
                 write!(f, "[line {}] Error: Expected {} but found {}.", line, expected, found),
-            ParseError::UnexpectedEndOfInput { line } => 
+            ParseError::UnexpectedEndOfInput { line } =>
                 write!(f, "[line {}] Error: Unexpected end of input.", line),
-            ParseError::ExpectedPrimaryExpression { found, line } => 
+            ParseError::ExpectedPrimaryExpression { found, line } =>
                 write!(f, "[line {}] Error: Expected primary expression but found {}.", line, found),
-            ParseError::InvalidNumberLiteral { value, line } => 
+            ParseError::InvalidNumberLiteral { value, line } =>
                 write!(f, "[line {}] Error: Invalid number literal '{}'.", line, value),
         }
     }
@@ -31,7 +31,7 @@ impl std::error::Error for ParseError {}
 pub struct Parser {
     tokens: Peekable<vec::IntoIter<Token>>,
     // Keep track of the last consumed token's line for error reporting
-    last_consumed_token_line: usize, 
+    last_consumed_token_line: usize,
 }
 
 impl Parser {
@@ -58,7 +58,7 @@ impl Parser {
 
     /// Entry‐point: start at the lowest‐precedence level
     pub fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.parse_comparison()?;          // ← NEW: delegate to addition level
+        let expr = self.parse_equality()?;          // ← NEW: delegate to addition level
         // … then your EOF check exactly as you have it now …
         if let Some(token) = self.peek() {
             if token.token_type != TokenType::EOF {
@@ -71,16 +71,29 @@ impl Parser {
         }
         Ok(expr)
     }
-
+    fn parse_equality(&mut self) -> Result<Expr,ParseError> {
+       let mut expr: Expr =  self.parse_comparison()?;
+       while let Some(token) = self.peek() {
+        match token.token_type {
+            TokenType::BANG_EQUAL | TokenType::EQUAL_EQUAL => {
+              let operator = self.advance().unwrap();
+              let right =  self.parse_comparison()?;
+              expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            }
+        _ => break,
+        }
+       }
+       Ok(expr)
+    }
     fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
         let mut expr: Expr = self.parse_addition()?;
         while let Some(token) = self.peek() {
             match token.token_type {
-                TokenType::GREATER | TokenType::GREATER_EQUAL | TokenType::LESS | 
+                TokenType::GREATER | TokenType::GREATER_EQUAL | TokenType::LESS |
                 TokenType::LESS_EQUAL => {
-                    let comparisonOperator = self.advance().unwrap();
-                    let rightExpr  = self.parse_addition()?;
-                    expr = Expr::Binary(Box::new(expr),comparisonOperator,Box::new(rightExpr));
+                    let operator = self.advance().unwrap();
+                    let right_expr  = self.parse_addition()?;
+                    expr = Expr::Binary(Box::new(expr),operator,Box::new(right_expr));
                 }
                 _ => break,
             }
@@ -90,7 +103,7 @@ impl Parser {
     /// addition → multiplication ( ( "+" | "-" ) multiplication )*
     fn parse_addition(&mut self) -> Result<Expr, ParseError> {
         // 1. Parse the "left" side by delegating to the next‐higher level
-        let mut expr = self.parse_multiplication()?; 
+        let mut expr = self.parse_multiplication()?;
 
         // 2. As long as we see + or −, consume it and parse another multiplication()
         while let Some(token) = self.peek() {
@@ -130,7 +143,7 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
         if let Some(token) = self.advance() {
-            let current_line = token.line; 
+            let current_line = token.line;
             match token.token_type {
                 TokenType::FALSE => Ok(Expr::Literal(AstLiteralValue::Boolean(false))),
                 TokenType::TRUE => Ok(Expr::Literal(AstLiteralValue::Boolean(true))),
@@ -143,8 +156,8 @@ impl Parser {
                                 .map_err(|_e| ParseError::InvalidNumberLiteral { value: s.clone(), line: current_line })
                         }
                         _ => Err(ParseError::ExpectedPrimaryExpression{
-                            found: "Number token without number literal".to_string(), 
-                            line: current_line 
+                            found: "Number token without number literal".to_string(),
+                            line: current_line
                         }),
                     }
                 },
@@ -154,8 +167,8 @@ impl Parser {
                             Ok(Expr::Literal(AstLiteralValue::StringValue(s)))
                         }
                         _ => Err(ParseError::ExpectedPrimaryExpression{
-                            found: "String token without string literal".to_string(), 
-                            line: current_line 
+                            found: "String token without string literal".to_string(),
+                            line: current_line
                         }),
                     }
                 },
