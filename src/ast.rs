@@ -26,7 +26,7 @@ impl fmt::Display for AstLiteralValue {
                 if n.fract() == 0.0 {
                     write!(f, "{:.1}", n)
                 } else {
-                    write!(f, "{}", n)
+                    write!(f, "{}", n) 
                 }
             }
             AstLiteralValue::StringValue(s) => write!(f, "{}", s), 

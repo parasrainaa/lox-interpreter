@@ -56,23 +56,60 @@ impl Parser {
         self.tokens.peek()
     }
 
+    /// Entry‐point: start at the lowest‐precedence level
     pub fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        // Your main.rs already checks for completely empty or EOF-only token streams.
-        // So, we expect at least one non-EOF token if this is called.
-        let expr = self.primary()?;
-
-        // After parsing a primary expression, for this stage, we expect no more tokens other than EOF.
+        let expr = self.parse_addition()?;          // ← NEW: delegate to addition level
+        // … then your EOF check exactly as you have it now …
         if let Some(token) = self.peek() {
             if token.token_type != TokenType::EOF {
                 return Err(ParseError::UnexpectedToken {
-                    expected: "EOF".to_string(),
+                    expected: "EOF".into(),
                     found: format!("{:?}", token.token_type),
                     line: token.line,
                 });
             }
         }
-        // If peek() is None here, it implies the primary() consumed the last token and it wasn't EOF.
-        // This shouldn't happen if the scanner always adds EOF and primary() doesn't consume it.
+        Ok(expr)
+    }
+
+    /// addition → multiplication ( ( "+" | "-" ) multiplication )*
+    fn parse_addition(&mut self) -> Result<Expr, ParseError> {
+        // 1. Parse the "left" side by delegating to the next‐higher level
+        let mut expr = self.parse_multiplication()?;
+
+        // 2. As long as we see + or −, consume it and parse another multiplication()
+        while let Some(token) = self.peek() {
+            match token.token_type {
+                TokenType::PLUS | TokenType::MINUS => {
+                    let operator = self.advance().unwrap();      // we know peek was Some
+                    let right = self.parse_multiplication()?;
+                    // combine into a new Binary node, and loop again
+                    expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+                }
+                _ => break,  // no more +/− at this level
+            }
+        }
+
+        Ok(expr)
+    }
+
+    /// multiplication → primary ( ( "*" | "/" ) primary )*
+    fn parse_multiplication(&mut self) -> Result<Expr, ParseError> {
+        // 1. Parse the "left" side by calling primary() (which already handles unary)
+        let mut expr = self.primary()?;
+
+        // 2. As long as we see * or /, consume it and parse another primary()
+        while let Some(token) = self.peek() {
+            match token.token_type {
+                TokenType::STAR | TokenType::SLASH => {
+                    let operator = self.advance().unwrap();
+                    let right = self.primary()?;
+                    expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+                }
+                _ => break,
+            }
+        }
+
         Ok(expr)
     }
 
@@ -108,9 +145,9 @@ impl Parser {
                     }
                 },
                 TokenType::LEFT_PAREN => {
-                    // Parse the expression inside the parens
-                    let inner = self.primary()?;
-            
+                    // Parse the full expression inside the parens (including binary ops)
+                    let inner = self.parse_addition()?;
+
                     // Then we must see a RIGHT_PAREN
                     match self.advance() {
                         Some(t) if t.token_type == TokenType::RIGHT_PAREN => {
