@@ -72,10 +72,25 @@ impl Parser {
         Ok(expr)
     }
 
+    fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
+        let mut expr: Expr = self.parse_addition()?;
+        while let Some(token) = self.peek() {
+            match token.token_type {
+                TokenType::GREATER | TokenType::GREATER_EQUAL | TokenType::LESS | 
+                TokenType::LESS_EQUAL => {
+                    let comparisonOperator = self.advance().unwrap();
+                    let rightExpr  = self.parse_addition()?;
+                    expr = Expr::Binary(Box::new(expr),comparisonOperator,Box::new(rightExpr));
+                }
+                _ => break,
+            }
+        }
+        Ok(expr)
+    }
     /// addition → multiplication ( ( "+" | "-" ) multiplication )*
     fn parse_addition(&mut self) -> Result<Expr, ParseError> {
         // 1. Parse the "left" side by delegating to the next‐higher level
-        let mut expr = self.parse_multiplication()?;
+        let mut expr = self.parse_multiplication()?; 
 
         // 2. As long as we see + or −, consume it and parse another multiplication()
         while let Some(token) = self.peek() {
