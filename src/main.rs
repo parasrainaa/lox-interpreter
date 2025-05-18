@@ -7,11 +7,12 @@ use std::process; // For exiting gracefully
 mod scanner;
 mod ast;
 mod parser;
+mod interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 3 {
-        eprintln!("Usage: {} <tokenize|parse> <filename>", args[0]);
+        eprintln!("Usage: {} <tokenize|parse|evaluate> <filename>", args[0]);
         process::exit(64);
     }
 
@@ -32,8 +33,8 @@ fn main() {
         eprintln!("{}", error);
     }
 
-    if !scanner_errors.is_empty() && command == "parse" {
-        eprintln!("Exiting due to scanner errors before parsing.");
+    if !scanner_errors.is_empty() && (command == "parse" || command == "evaluate") {
+        eprintln!("Exiting due to scanner errors before parsing/evaluation.");
         process::exit(65);
     }
 
@@ -59,23 +60,47 @@ fn main() {
         }
         "parse" => {
             if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == scanner::TokenType::EOF) {
-                 println!("No tokens to parse (or only EOF).");
-                 return;
+                println!("No tokens to parse (or only EOF).");
+                return;
             }
 
             let mut parser = parser::Parser::new(tokens);
             match parser.parse_expression() {
                 Ok(expr_ast) => {
+                    // Print the parsed AST
                     println!("{}", expr_ast);
                 }
                 Err(parse_error) => {
-                    eprintln!("{}", parse_error); 
-                    process::exit(65); 
+                    eprintln!("{}", parse_error);
+                    process::exit(65);
+                }
+            }
+        }
+        "evaluate" => {
+            // Evaluate: parse then interpret
+            if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == scanner::TokenType::EOF) {
+                // Nothing to evaluate
+                return;
+            }
+            let mut parser = parser::Parser::new(tokens);
+            match parser.parse_expression() {
+                Ok(expr_ast) => {
+                    match interpreter::evaluate(&expr_ast) {
+                        Ok(value) => println!("{}", value),
+                        Err(err) => {
+                            eprintln!("{:?}", err);
+                            process::exit(70);
+                        }
+                    }
+                }
+                Err(parse_error) => {
+                    eprintln!("{}", parse_error);
+                    process::exit(65);
                 }
             }
         }
         _ => {
-            eprintln!("Unknown command: {}. Use 'tokenize' or 'parse'.", command);
+            eprintln!("Unknown command: {}. Use 'tokenize', 'parse', or 'evaluate'.", command);
             process::exit(64);
         }
     }

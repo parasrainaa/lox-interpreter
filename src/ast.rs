@@ -2,7 +2,7 @@ use crate::scanner::Token; // For operator in Binary/Unary expressions
 use std::fmt;
 
 // Represents the different kinds of literal values in the AST.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AstLiteralValue {
     Number(f64),
     StringValue(String),
