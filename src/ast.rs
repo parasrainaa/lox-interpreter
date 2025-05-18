@@ -22,13 +22,7 @@ pub enum Expr {
 impl fmt::Display for AstLiteralValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AstLiteralValue::Number(n) => {
-                if n.fract() == 0.0 {
-                    write!(f, "{:.0}", n)
-                } else {
-                    write!(f, "{}", n) 
-                }
-            }
+            AstLiteralValue::Number(n) => write!(f, "{}", n),
             AstLiteralValue::StringValue(s) => write!(f, "{}", s), 
             AstLiteralValue::Boolean(b) => write!(f, "{}", b),
             AstLiteralValue::Nil => write!(f, "nil"),
