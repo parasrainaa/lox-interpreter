@@ -43,7 +43,13 @@ fn parenthesize_operator(f: &mut fmt::Formatter<'_>, operator_lexeme: &str, expr
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(value) => write!(f, "{}", value),
+            Expr::Literal(value) => {
+                match value {
+                    AstLiteralValue::Number(n) if n.fract() == 0.0 => write!(f, "{:.1}", n),
+                    AstLiteralValue::Number(n) => write!(f, "{}", n),
+                    other => write!(f, "{}", other),
+                }
+            }
             Expr::Grouping(expression) => {
                 write!(f, "(group {})", expression)
             }
