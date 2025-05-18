@@ -1,7 +1,5 @@
-use std::f64;
-
 use crate::ast::{Expr,AstLiteralValue};
-use crate::scanner::{Token, TokenType};
+use crate::scanner::{ TokenType};
 // what i have to do in this file is to make a 
 fn is_truthy(value: &AstLiteralValue) -> bool {
     match value {
@@ -56,10 +54,16 @@ pub fn evaluate(expr: &Expr) -> Result<AstLiteralValue, RuntimeError> {
             match token.token_type {
                 // Arithmetic
                 TokenType::PLUS => {
-                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
-                        Ok(AstLiteralValue::Number(a + b))
-                    } else {
-                        Err(RuntimeError::OperandsMustBeNumbers)
+                    match (&left_value, &right_value) {
+                        (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) => {
+                            Ok(AstLiteralValue::Number(*a + *b))
+                        }
+                        (AstLiteralValue::StringValue(s1), AstLiteralValue::StringValue(s2)) => {
+                            Ok(AstLiteralValue::StringValue(s1.clone() + s2.as_str()))
+                        }
+                        _ => {
+                            Err(RuntimeError::OperandsMustBeNumbers)
+                        }
                     }
                 }
                 TokenType::MINUS => {

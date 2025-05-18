@@ -3,6 +3,8 @@ use phf_macros::phf_map;
 use std::fmt;
 
 // Using standard Rust naming convention (PascalCase for enums/structs)
+// // don't try to touch this file, don't edit it because rust analyzer or the linter gives any kind of warning for this. you are not 
+// allowed to do this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     LEFT_PAREN,
@@ -79,6 +81,19 @@ pub enum LiteralValue {
 }
 
 #[derive(Debug, Clone)]
+
+
+
+
+
+
+
+
+
+
+
+
+
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,

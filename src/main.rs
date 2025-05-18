@@ -1,6 +1,5 @@
 use std::env;
 use std::fs;
-use std::io::{self, Write};
 use std::process; // For exiting gracefully
 
 // Declare the scanner module (looks for src/scanner.rs or src/scanner/mod.rs)
