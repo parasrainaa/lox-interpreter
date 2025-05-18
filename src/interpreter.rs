@@ -54,48 +54,72 @@ pub fn evaluate(expr: &Expr) -> Result<AstLiteralValue, RuntimeError> {
             let left_value  = evaluate(left_expr)?;
             let right_value = evaluate(right_expr)?;
             match token.token_type {
-                // Arithmetic examples
+                // Arithmetic
                 TokenType::PLUS => {
-                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) =
-                        (left_value, right_value)
-                    {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
                         Ok(AstLiteralValue::Number(a + b))
                     } else {
                         Err(RuntimeError::OperandsMustBeNumbers)
                     }
                 }
+                TokenType::MINUS => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Number(a - b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
+                }
+                TokenType::STAR => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Number(a * b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
+                }
                 TokenType::SLASH => {
-                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) =
-                        (left_value, right_value)
-                    {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
                         Ok(AstLiteralValue::Number(a / b))
                     } else {
                         Err(RuntimeError::OperandsMustBeNumbers)
                     }
                 }
-                // Comparison examples
-                TokenType::EQUAL_EQUAL => {
-                    Ok(AstLiteralValue::Boolean(left_value == right_value))
+                // Comparison
+                TokenType::GREATER => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Boolean(a > b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
                 }
-                TokenType::BANG_EQUAL => {
-                    Ok(AstLiteralValue::Boolean(left_value != right_value))
+                TokenType::GREATER_EQUAL => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Boolean(a >= b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
                 }
-                // Logical or/and (using truthiness)
-                TokenType::OR => {
-                    Ok(AstLiteralValue::Boolean(
-                        is_truthy(&left_value) || is_truthy(&right_value),
-                    ))
+                TokenType::LESS => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Boolean(a < b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
                 }
-                TokenType::AND => {
-                    Ok(AstLiteralValue::Boolean(
-                        is_truthy(&left_value) && is_truthy(&right_value),
-                    ))
+                TokenType::LESS_EQUAL => {
+                    if let (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) = (left_value, right_value) {
+                        Ok(AstLiteralValue::Boolean(a <= b))
+                    } else {
+                        Err(RuntimeError::OperandsMustBeNumbers)
+                    }
                 }
+                // Equality
+                TokenType::EQUAL_EQUAL => Ok(AstLiteralValue::Boolean(left_value == right_value)),
+                TokenType::BANG_EQUAL  => Ok(AstLiteralValue::Boolean(left_value != right_value)),
+                // Logical
+                TokenType::OR  => Ok(AstLiteralValue::Boolean(is_truthy(&left_value) || is_truthy(&right_value))),
+                TokenType::AND => Ok(AstLiteralValue::Boolean(is_truthy(&left_value) && is_truthy(&right_value))),
                 _ => Err(RuntimeError::UnknownBinaryOperator),
             }
-        }
-        _ => {
-            Err(RuntimeError::UnknownBinaryOperator)
         }
     }
 }
