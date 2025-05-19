@@ -10,21 +10,33 @@ mod interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        eprintln!("Usage: {} <tokenize|parse|evaluate> <filename>", args[0]);
+    if args.len() < 2 || args.len() > 3 { // Allowing `lox <filename>` or `lox` (for eventual REPL)
+        eprintln!("Usage: {} [filename]", args[0]);
+        eprintln!("Usage: {} <filename>", args[0]);
         process::exit(64);
     }
 
-    let command = &args[1];
-    let filename = &args[2];
+    let (command_or_filename, filename_option) = if args.len() == 2 {
+        (args[1].clone(), None) // Treat as `lox <filename>` implicitly meaning "run"
+    } else { // args.len() == 3
+        (args[1].clone(), Some(args[2].clone()))
+    };
 
-            let file_contents = match fs::read_to_string(filename) {
-                Ok(contents) => contents,
-                Err(e) => {
-                    eprintln!("Failed to read file '{}': {}", filename, e);
-                    process::exit(74);
-                }
-            };
+    let filename = if filename_option.is_some() {
+        filename_option.unwrap()
+    } else {
+        command_or_filename.clone() // This is the filename if command was implicit
+    };
+
+    let command = if args.len() == 3 { command_or_filename } else { "run".to_string() };
+
+    let file_contents = match fs::read_to_string(&filename) {
+        Ok(contents) => contents,
+        Err(e) => {
+            eprintln!("Failed to read file '{}': {}", filename, e);
+            process::exit(74);
+        }
+    };
 
     let (tokens, scanner_errors) = scanner::scan_source(&file_contents);
 
@@ -32,11 +44,10 @@ fn main() {
         eprintln!("{}", error);
     }
 
-    if !scanner_errors.is_empty() && (command == "parse" || command == "evaluate") {
+    if !scanner_errors.is_empty() && (command == "parse" || command == "evaluate" || command == "run") {
         eprintln!("Exiting due to scanner errors before parsing/evaluation.");
         process::exit(65);
     }
-
 
     match command.as_str() {
         "tokenize" => {
@@ -64,42 +75,44 @@ fn main() {
             }
 
             let mut parser = parser::Parser::new(tokens);
-            match parser.parse_expression() {
-                Ok(expr_ast) => {
-                    // Print the parsed AST
-                    println!("{}", expr_ast);
+            match parser.parse() {
+                Ok(program_ast) => {
+                    println!("Parsed {} statements successfully.", program_ast.statements.len());
                 }
-                Err(parse_error) => {
-                    eprintln!("{}", parse_error);
+                Err(parse_errors) => {
+                    for error in parse_errors {
+                        eprintln!("{}", error);
+                    }
                     process::exit(65);
                 }
             }
         }
-        "evaluate" => {
-            // Evaluate: parse then interpret
+        "evaluate" | "run" => {
             if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == scanner::TokenType::EOF) {
-                // Nothing to evaluate
                 return;
             }
             let mut parser = parser::Parser::new(tokens);
-            match parser.parse_expression() {
-                Ok(expr_ast) => {
-                    match interpreter::evaluate(&expr_ast) {
-                        Ok(value) => println!("{}", value),
-                        Err(err) => {
-                            eprintln!("{:?}", err);
+            match parser.parse() {
+                Ok(program_ast) => {
+                    let mut interpreter = interpreter::Interpreter::new();
+                    match interpreter.interpret(&program_ast) {
+                        Ok(()) => { /* Execution successful */ }
+                        Err(runtime_error) => {
+                            eprintln!("Runtime error: {}", runtime_error);
                             process::exit(70);
                         }
                     }
                 }
-                Err(parse_error) => {
-                    eprintln!("{}", parse_error);
+                Err(parse_errors) => {
+                    for error in parse_errors {
+                        eprintln!("{}", error);
+                    }
                     process::exit(65);
                 }
             }
         }
         _ => {
-            eprintln!("Unknown command: {}. Use 'tokenize', 'parse', or 'evaluate'.", command);
+            eprintln!("Unknown command: {}. Use 'tokenize', 'parse', or 'evaluate'/'run'.", command);
             process::exit(64);
         }
     }

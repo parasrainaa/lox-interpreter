@@ -1,5 +1,5 @@
 use crate::scanner::Token; // For operator in Binary/Unary expressions
-use std::fmt;
+use std::{clone, fmt};
 
 // Represents the different kinds of literal values in the AST.
 #[derive(Debug, Clone, PartialEq,)]
@@ -16,7 +16,22 @@ pub enum Expr {
     Literal(AstLiteralValue),
     Grouping(Box<Expr>),
     Unary(Token, Box<Expr>),
-    Binary(Box<Expr>, Token, Box<Expr>),
+    Binary(Box<Expr>, Token, Box<Expr>), 
+}
+#[derive(Debug,Clone)]
+pub enum Stmt {
+  ExprStmt(Box<Expr>),
+  PrintStmt(Box<Expr>)
+}
+#[derive(Debug,Clone)]
+pub struct Program {
+  pub statements : Vec<Stmt>,
+}
+
+impl Program {
+    pub fn new(statements: Vec<Stmt>) -> Self {
+        Program { statements }
+    }
 }
 
 impl fmt::Display for AstLiteralValue {

@@ -1,5 +1,5 @@
 use crate::scanner::{Token, TokenType, LiteralValue as ScannerLiteralValue};
-use crate::ast::{Expr, AstLiteralValue};
+use crate::ast::{Expr, AstLiteralValue, Stmt, Program};
 use std::iter::Peekable;
 use std::vec;
 
@@ -32,6 +32,10 @@ pub struct Parser {
     tokens: Peekable<vec::IntoIter<Token>>,
     // Keep track of the last consumed token's line for error reporting
     last_consumed_token_line: usize,
+    // A flag to track if an error occurred to help with synchronization.
+    // This is a simple way to avoid cascading errors. A more robust
+    // panic mode recovery would involve more complex logic.
+    had_error: bool, 
 }
 
 impl Parser {
@@ -39,6 +43,7 @@ impl Parser {
         Parser {
             tokens: tokens.into_iter().peekable(),
             last_consumed_token_line: 1, // Default to 1, will be updated upon first advance
+            had_error: false,
         }
     }
 
@@ -56,10 +61,95 @@ impl Parser {
         self.tokens.peek()
     }
 
+    // Checks if the next token is EOF
+    fn is_at_end(&mut self) -> bool {
+        match self.peek() {
+            Some(token) => token.token_type == TokenType::EOF,
+            None => true, // No more tokens means we are at the end
+        }
+    }
+    
+    // Consumes a token if it matches the expected type.
+    // Returns the consumed token or an error.
+    fn consume(&mut self, expected_type: TokenType, error_message: &str) -> Result<Token, ParseError> {
+        let peeked_token_info = match self.peek() {
+            Some(token) => Some((token.token_type, token.line)), // Extract info needed
+            None => None,
+        };
+
+        match peeked_token_info {
+            Some((found_type, line)) if found_type == expected_type => {
+                Ok(self.advance().unwrap()) // Safe to unwrap, we just confirmed it's there and matches
+            }
+            Some((found_type, line)) => {
+                self.had_error = true;
+                Err(ParseError::UnexpectedToken {
+                    expected: format!("{:?}", expected_type),
+                    found: format!("{:?}", found_type),
+                    line,
+                })
+            }
+            None => {
+                self.had_error = true;
+                Err(ParseError::UnexpectedEndOfInput {
+                    line: self.last_consumed_token_line,
+                })
+            }
+        }
+    }
+    
+    /// Entry point for parsing a whole Lox program.
+    pub fn parse(&mut self) -> Result<Program, Vec<ParseError>> {
+        let mut statements = Vec::new();
+        let mut errors = Vec::new();
+
+        while !self.is_at_end() {
+            match self.statement() {
+                Ok(stmt) => statements.push(stmt),
+                Err(e) => {
+                    errors.push(e);
+                    // self.synchronize(); // Basic error recovery (optional, can be added later)
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(Program::new(statements))
+        } else {
+            Err(errors)
+        }
+    }
+
+    fn statement(&mut self) -> Result<Stmt, ParseError> {
+        if self.check(TokenType::PRINT) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // Consume PRINT token
+        let value = self.expression()?;
+        self.consume(TokenType::SEMICOLON, "Expect ';' after value.")?;
+        Ok(Stmt::PrintStmt(Box::new(value)))
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, ParseError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::SEMICOLON, "Expect ';' after expression.")?;
+        Ok(Stmt::ExprStmt(Box::new(expr)))
+    }
+    
+    // Renaming parse_expression to expression for clarity as it's now a part of statement parsing
+    fn expression(&mut self) -> Result<Expr, ParseError> {
+        self.parse_equality()
+    }
+
     /// Entry‐point: start at the lowest‐precedence level
-    pub fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.parse_equality()?;          // ← NEW: delegate to addition level
-        // … then your EOF check exactly as you have it now …
+    pub fn parse_expression(&mut self) -> Result<Expr, ParseError> { // This method might be used by REPL or tests
+        let expr = self.parse_equality()?;
+        // For a single expression, we might still want to ensure no trailing tokens other than EOF
         if let Some(token) = self.peek() {
             if token.token_type != TokenType::EOF {
                 return Err(ParseError::UnexpectedToken {
@@ -80,7 +170,9 @@ impl Parser {
               let right =  self.parse_comparison()?;
               expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
             }
-        _ => break,
+            // Helper to check current token type without consuming
+            // Useful for statement parsing logic
+            _ => break, 
         }
        }
        Ok(expr)
@@ -142,68 +234,55 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
-        if let Some(token) = self.advance() {
+        if let Some(token) = self.peek() { // Changed advance() to peek() to check before consuming
             let current_line = token.line;
+            // We consume the token only if it's part of a valid primary expression
             match token.token_type {
-                TokenType::FALSE => Ok(Expr::Literal(AstLiteralValue::Boolean(false))),
-                TokenType::TRUE => Ok(Expr::Literal(AstLiteralValue::Boolean(true))),
-                TokenType::NIL => Ok(Expr::Literal(AstLiteralValue::Nil)),
-                TokenType::NUMBER => {
-                    match token.literal {
-                        Some(ScannerLiteralValue::Number(s)) => {
-                            s.parse::<f64>()
-                                .map(|n| Expr::Literal(AstLiteralValue::Number(n)))
-                                .map_err(|_e| ParseError::InvalidNumberLiteral { value: s.clone(), line: current_line })
-                        }
-                        _ => Err(ParseError::ExpectedPrimaryExpression{
-                            found: "Number token without number literal".to_string(),
-                            line: current_line
-                        }),
-                    }
-                },
-                TokenType::STRING => {
-                    match token.literal {
-                        Some(ScannerLiteralValue::String(s)) => {
-                            Ok(Expr::Literal(AstLiteralValue::StringValue(s)))
-                        }
-                        _ => Err(ParseError::ExpectedPrimaryExpression{
-                            found: "String token without string literal".to_string(),
-                            line: current_line
-                        }),
-                    }
-                },
-                TokenType::LEFT_PAREN => {
-                    // Parse the full expression inside the parens (including binary ops)
-                    let inner = self.parse_equality()?;
-
-                    // Then we must see a RIGHT_PAREN
-                    match self.advance() {
-                        Some(t) if t.token_type == TokenType::RIGHT_PAREN => {
+                TokenType::FALSE | TokenType::TRUE | TokenType::NIL | 
+                TokenType::NUMBER | TokenType::STRING | TokenType::LEFT_PAREN => {
+                    let consumed_token = self.advance().unwrap(); // Now consume
+                    match consumed_token.token_type {
+                        TokenType::FALSE => Ok(Expr::Literal(AstLiteralValue::Boolean(false))),
+                        TokenType::TRUE => Ok(Expr::Literal(AstLiteralValue::Boolean(true))),
+                        TokenType::NIL => Ok(Expr::Literal(AstLiteralValue::Nil)),
+                        TokenType::NUMBER => {
+                            match consumed_token.literal {
+                                Some(ScannerLiteralValue::Number(s)) => {
+                                    s.parse::<f64>()
+                                        .map(|n| Expr::Literal(AstLiteralValue::Number(n)))
+                                        .map_err(|_e| ParseError::InvalidNumberLiteral { value: s.clone(), line: current_line })
+                                }
+                                _ => Err(ParseError::ExpectedPrimaryExpression{
+                                    found: "Number token without number literal".to_string(),
+                                    line: current_line
+                                }),
+                            }
+                        },
+                        TokenType::STRING => {
+                            match consumed_token.literal {
+                                Some(ScannerLiteralValue::String(s)) => {
+                                    Ok(Expr::Literal(AstLiteralValue::StringValue(s)))
+                                }
+                                _ => Err(ParseError::ExpectedPrimaryExpression{
+                                    found: "String token without string literal".to_string(),
+                                    line: current_line
+                                }),
+                            }
+                        },
+                        TokenType::LEFT_PAREN => {
+                            let inner = self.expression()?; // Changed from parse_equality to expression
+                            self.consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.")?;
                             Ok(Expr::Grouping(Box::new(inner)))
                         }
-                        Some(t) => {
-                            // Found some other token instead of ')'
-                            Err(ParseError::UnexpectedToken {
-                                expected: "RIGHT_PAREN".to_string(),
-                                found: format!("{:?}", t.token_type),
-                                line: t.line,
-                            })
-                        }
-                        None => {
-                            // Ran out of tokens entirely
-                            Err(ParseError::UnexpectedEndOfInput {
-                                line: self.last_consumed_token_line,
-                            })
-                        }
+                        _ => unreachable!(), // Should not happen due to outer match
                     }
-                },
-                TokenType::BANG | TokenType::MINUS => {
-                    let operator = token.clone();
-                    let operand = self.primary()?;
-                    Ok(Expr::Unary(operator, Box::new(operand)))
-                },
+                }
+                TokenType::BANG | TokenType::MINUS => { // Unary operators
+                    let operator_token = self.advance().unwrap(); // Consume operator
+                    let operand = self.primary()?; // Parse the operand (which is a primary expression)
+                    Ok(Expr::Unary(operator_token, Box::new(operand)))
+                }
                 TokenType::EOF => {
-                    // This means an expression was expected, but we found EOF instead.
                     Err(ParseError::UnexpectedEndOfInput { line: current_line })
                 }
                 _ => Err(ParseError::ExpectedPrimaryExpression {
@@ -212,10 +291,15 @@ impl Parser {
                 }),
             }
         } else {
-            // This means advance() returned None, meaning no tokens were left when primary() was called.
-            // Given main.rs checks, this path should ideally not be hit if called from parse_expression directly.
-            // If it is, use the last known line number.
             Err(ParseError::UnexpectedEndOfInput { line: self.last_consumed_token_line })
+        }
+    }
+
+    // Helper to check current token type without consuming
+    fn check(&mut self, token_type: TokenType) -> bool {
+        match self.peek() {
+            Some(token) => token.token_type == token_type,
+            None => false,
         }
     }
 }
