@@ -1,118 +1,138 @@
 use std::env;
 use std::fs;
-use std::process; // For exiting gracefully
+use std::process;
 
-// Declare the scanner module (looks for src/scanner.rs or src/scanner/mod.rs)
+// Declare modules
 mod scanner;
 mod ast;
 mod parser;
 mod interpreter;
 
+use crate::scanner::TokenType;
+use crate::scanner::LiteralValue as ScannerLiteralValue;
+use crate::ast::{Stmt, Program};
+
+use crate::interpreter::Interpreter;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 || args.len() > 3 { // Allowing `lox <filename>` or `lox` (for eventual REPL)
-        eprintln!("Usage: {} [filename]", args[0]);
-        eprintln!("Usage: {} <filename>", args[0]);
+    if args.len() < 2 || args.len() > 3 {
+        eprintln!("Usage: {} [tokenize|parse|run|evaluate] <filename>", args[0]);
         process::exit(64);
     }
 
-    let (command_or_filename, filename_option) = if args.len() == 2 {
-        (args[1].clone(), None) // Treat as `lox <filename>` implicitly meaning "run"
-    } else { // args.len() == 3
-        (args[1].clone(), Some(args[2].clone()))
-    };
-
-    let filename = if filename_option.is_some() {
-        filename_option.unwrap()
+    let (command, filename) = if args.len() == 3 {
+        (args[1].as_str(), args[2].clone())
     } else {
-        command_or_filename.clone() // This is the filename if command was implicit
+        ("run", args[1].clone())
     };
 
-    let command = if args.len() == 3 { command_or_filename } else { "run".to_string() };
-
-    let file_contents = match fs::read_to_string(&filename) {
-        Ok(contents) => contents,
+    let source = match fs::read_to_string(&filename) {
+        Ok(s) => s,
         Err(e) => {
-            eprintln!("Failed to read file '{}': {}", filename, e);
+            eprintln!("Failed to read '{}': {}", filename, e);
             process::exit(74);
         }
     };
 
-    let (tokens, scanner_errors) = scanner::scan_source(&file_contents);
-
-    for error in &scanner_errors {
-        eprintln!("{}", error);
+    // Scan the source
+    let (tokens, scan_errors) = scanner::scan_source(&source);
+    for err in &scan_errors {
+        eprintln!("{}", err);
     }
-
-    if !scanner_errors.is_empty() && (command == "parse" || command == "evaluate" || command == "run") {
-        eprintln!("Exiting due to scanner errors before parsing/evaluation.");
+    if !scan_errors.is_empty() && (command == "parse" || command == "run" || command == "evaluate") {
+        eprintln!("Exiting due to scanner errors.");
         process::exit(65);
     }
 
-    match command.as_str() {
+    match command {
         "tokenize" => {
-            for token in tokens {
-                match &token.literal { 
-                    Some(scanner::LiteralValue::Number(n)) => {
-                        println!("{} {} {}", token.token_type, token.lexeme, n);
-                    }
-                    Some(scanner::LiteralValue::String(s)) => {
-                        println!("{} {} {}", token.token_type, token.lexeme, s);
-                    }
-                    None => {
-                        println!("{} {} null", token.token_type, token.lexeme);
-                    }
+            for tok in tokens {
+                match &tok.literal {
+                    Some(ScannerLiteralValue::Number(n)) =>
+                        println!("{} {} {}", tok.token_type, tok.lexeme, n),
+                    Some(ScannerLiteralValue::String(s)) =>
+                        println!("{} {} {}", tok.token_type, tok.lexeme, s),
+                    None =>
+                        println!("{} {} null", tok.token_type, tok.lexeme),
                 }
             }
-            if !scanner_errors.is_empty() {
+            if !scan_errors.is_empty() {
                 process::exit(65);
             }
         }
+
         "parse" => {
-            if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == scanner::TokenType::EOF) {
+            if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == TokenType::EOF) {
                 println!("No tokens to parse (or only EOF).");
                 return;
             }
-
-            let mut parser = parser::Parser::new(tokens);
-            match parser.parse() {
-                Ok(program_ast) => {
-                    println!("Parsed {} statements successfully.", program_ast.statements.len());
+            let mut p = parser::Parser::new(tokens);
+            match p.parse() {
+                Ok(program) => {
+                    if program.statements.len() == 1 {
+                        if let Some(stmt) = program.statements.get(0) {
+                            if let Stmt::ExprStmt(expr) = stmt {
+                                println!("{}", expr);
+                            } else {
+                                println!("{}", stmt);
+                            }
+                        }
+                    } else {
+                        println!("{}", program);
+                    }
                 }
-                Err(parse_errors) => {
-                    for error in parse_errors {
-                        eprintln!("{}", error);
+                Err(errors) => {
+                    for e in errors {
+                        eprintln!("{}", e);
                     }
                     process::exit(65);
                 }
             }
         }
-        "evaluate" | "run" => {
-            if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == scanner::TokenType::EOF) {
+
+        "run" => {
+            if tokens.is_empty() || (tokens.len() == 1 && tokens[0].token_type == TokenType::EOF) {
                 return;
             }
-            let mut parser = parser::Parser::new(tokens);
-            match parser.parse() {
-                Ok(program_ast) => {
-                    let mut interpreter = interpreter::Interpreter::new();
-                    match interpreter.interpret(&program_ast) {
-                        Ok(()) => { /* Execution successful */ }
-                        Err(runtime_error) => {
-                            eprintln!("Runtime error: {}", runtime_error);
-                            process::exit(70);
-                        }
-                    }
-                }
-                Err(parse_errors) => {
-                    for error in parse_errors {
-                        eprintln!("{}", error);
+            let mut p = parser::Parser::new(tokens.clone());
+            let program = match p.parse() {
+                Ok(prog) => prog,
+                Err(errors) => {
+                    for e in errors {
+                        eprintln!("{}", e);
                     }
                     process::exit(65);
                 }
+            };
+            let mut interp = Interpreter::new();
+            if let Err(err) = interp.interpret(&program) {
+                eprintln!("Runtime error: {}", err);
+                process::exit(70);
             }
         }
+
+        "evaluate" => {
+            // Single-expression evaluation (no semicolon)
+            let mut p = parser::Parser::new(tokens);
+            let expr = match p.parse_expression() {
+                Ok(e) => e,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    process::exit(65);
+                }
+            };
+            // Wrap in a print statement for output
+            let program = Program::new(vec![Stmt::PrintStmt(Box::new(expr))]);
+            let mut interp = Interpreter::new();
+            if let Err(err) = interp.interpret(&program) {
+                eprintln!("Runtime error: {}", err);
+                process::exit(70);
+            }
+        }
+
         _ => {
-            eprintln!("Unknown command: {}. Use 'tokenize', 'parse', or 'evaluate'/'run'.", command);
+            eprintln!("Unknown command: {}. Use 'tokenize', 'parse', 'run', or 'evaluate'.", command);
             process::exit(64);
         }
     }

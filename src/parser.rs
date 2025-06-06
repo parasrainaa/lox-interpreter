@@ -68,6 +68,19 @@ impl Parser {
             None => true, // No more tokens means we are at the end
         }
     }
+    fn synchronize(&mut self) {
+      while let Some(tok) = self.advance() {
+          if tok.token_type == TokenType::SEMICOLON {
+              return;
+          }
+          match self.peek().map(|t| &t.token_type) {
+              Some(TokenType::CLASS) | Some(TokenType::FUN) | Some(TokenType::VAR)
+              | Some(TokenType::FOR)   | Some(TokenType::IF)  | Some(TokenType::WHILE)
+              | Some(TokenType::PRINT) | Some(TokenType::RETURN) => return,
+              _ => {}
+          }
+      }
+  }
     
     // Consumes a token if it matches the expected type.
     // Returns the consumed token or an error.
@@ -97,27 +110,33 @@ impl Parser {
             }
         }
     }
-    
-    /// Entry point for parsing a whole Lox program.
+    // Entry point for declarations (currently only statements).
+    fn parse_declaration(&mut self) -> Result<Stmt, ParseError> {
+        // In this interpreter, declarations are the same as statements.
+        self.statement()
+    }
+
     pub fn parse(&mut self) -> Result<Program, Vec<ParseError>> {
-        let mut statements = Vec::new();
-        let mut errors = Vec::new();
-
-        while !self.is_at_end() {
-            match self.statement() {
-                Ok(stmt) => statements.push(stmt),
-                Err(e) => {
-                    errors.push(e);
-                    // self.synchronize(); // Basic error recovery (optional, can be added later)
-                }
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(Program::new(statements))
-        } else {
-            Err(errors)
-        }
+      let mut errors = Vec::new();
+      let mut statements = Vec::new();
+      while let Some(tok) = self.peek() {
+          if tok.token_type == TokenType::EOF {
+              self.advance();
+              break;
+          }
+          match self.parse_declaration() {
+              Ok(stmt) => statements.push(stmt),
+              Err(err) => {
+                  errors.push(err);
+                  self.synchronize();
+              }
+          }
+      }
+      if errors.is_empty() {
+          Ok(Program::new(statements))
+      } else {
+          Err(errors)
+      }
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
@@ -130,14 +149,25 @@ impl Parser {
 
     fn print_statement(&mut self) -> Result<Stmt, ParseError> {
         self.advance(); // Consume PRINT token
+        if self.check(TokenType::SEMICOLON) {
+          return Err(ParseError::UnexpectedToken {
+              expected: "expression".to_string(),
+              found: "semicolon".to_string(),
+              line: self.peek().unwrap().line,
+          });
+      }
         let value = self.expression()?;
-        self.consume(TokenType::SEMICOLON, "Expect ';' after value.")?;
+        if !self.is_at_end() {
+            self.consume(TokenType::SEMICOLON, "Expect ';' after value.")?;
+        }
         Ok(Stmt::PrintStmt(Box::new(value)))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::SEMICOLON, "Expect ';' after expression.")?;
+        if !self.is_at_end() {
+            self.consume(TokenType::SEMICOLON, "Expect ';' after expression.")?;
+        }
         Ok(Stmt::ExprStmt(Box::new(expr)))
     }
     

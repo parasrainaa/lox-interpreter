@@ -1,5 +1,5 @@
 use crate::scanner::Token; // For operator in Binary/Unary expressions
-use std::{clone, fmt};
+use std::fmt;
 
 // Represents the different kinds of literal values in the AST.
 #[derive(Debug, Clone, PartialEq,)]
@@ -27,13 +27,27 @@ pub enum Stmt {
 pub struct Program {
   pub statements : Vec<Stmt>,
 }
-
 impl Program {
-    pub fn new(statements: Vec<Stmt>) -> Self {
-        Program { statements }
-    }
+  pub fn new(statements: Vec<Stmt>) -> Self {
+    Program{statements}
+  }
 }
-
+impl fmt::Display for Stmt {
+  fn fmt(&self,f:&mut fmt::Formatter<'_>) -> fmt::Result {
+    match self{
+      Stmt::ExprStmt(expr) => write!(f, "expr-stmt {}", expr),
+      Stmt::PrintStmt(expr) => write!(f, "print-stmt {}",expr),
+    }
+  }
+}
+impl fmt::Display for Program {
+  fn fmt(&self, f:&mut fmt::Formatter<'_>) -> fmt::Result{
+    for stmt in &self.statements{
+      writeln!(f,"{}",stmt)?;
+    } 
+    Ok(())
+  }
+}
 impl fmt::Display for AstLiteralValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
