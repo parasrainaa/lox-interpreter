@@ -2,7 +2,6 @@ use std::env;
 use std::fs;
 use std::process;
 
-// Declare modules
 mod scanner;
 mod ast;
 mod parser;
@@ -35,7 +34,6 @@ fn main() {
         }
     };
 
-    // Scan the source
     let (tokens, scan_errors) = scanner::scan_source(&source);
     for err in &scan_errors {
         eprintln!("{}", err);
@@ -113,7 +111,6 @@ fn main() {
         }
 
         "evaluate" => {
-            // Single-expression evaluation (no semicolon)
             let mut p = parser::Parser::new(tokens);
             let expr = match p.parse_expression() {
                 Ok(e) => e,
@@ -122,7 +119,6 @@ fn main() {
                     process::exit(65);
                 }
             };
-            // Wrap in a print statement for output
             let program = Program::new(vec![Stmt::PrintStmt(Box::new(expr))]);
             let mut interp = Interpreter::new();
             if let Err(err) = interp.interpret(&program) {

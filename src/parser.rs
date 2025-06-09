@@ -9,6 +9,7 @@ pub enum ParseError {
     UnexpectedEndOfInput { line: usize },
     ExpectedPrimaryExpression { found: String, line: usize },
     InvalidNumberLiteral { value: String, line: usize },
+    InvalidAssignmentTarget { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
@@ -30,11 +31,7 @@ impl std::error::Error for ParseError {}
 
 pub struct Parser {
     tokens: Peekable<vec::IntoIter<Token>>,
-    // Keep track of the last consumed token's line for error reporting
     last_consumed_token_line: usize,
-    // A flag to track if an error occurred to help with synchronization.
-    // This is a simple way to avoid cascading errors. A more robust
-    // panic mode recovery would involve more complex logic.
     had_error: bool, 
 }
 
@@ -42,12 +39,11 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Parser {
             tokens: tokens.into_iter().peekable(),
-            last_consumed_token_line: 1, // Default to 1, will be updated upon first advance
+            last_consumed_token_line: 1, 
             had_error: false,
         }
     }
 
-    // Consumes the next token and updates the last consumed token's line.
     fn advance(&mut self) -> Option<Token> {
         let token = self.tokens.next();
         if let Some(ref t) = token {
@@ -56,16 +52,14 @@ impl Parser {
         token
     }
 
-    // Looks at the next token without consuming it.
     fn peek(&mut self) -> Option<&Token> {
         self.tokens.peek()
     }
 
-    // Checks if the next token is EOF
     fn is_at_end(&mut self) -> bool {
         match self.peek() {
             Some(token) => token.token_type == TokenType::EOF,
-            None => true, // No more tokens means we are at the end
+            None => true, // 
         }
     }
     fn synchronize(&mut self) {
@@ -82,17 +76,15 @@ impl Parser {
       }
   }
     
-    // Consumes a token if it matches the expected type.
-    // Returns the consumed token or an error.
     fn consume(&mut self, expected_type: TokenType, error_message: &str) -> Result<Token, ParseError> {
         let peeked_token_info = match self.peek() {
-            Some(token) => Some((token.token_type, token.line)), // Extract info needed
+            Some(token) => Some((token.token_type, token.line)), 
             None => None,
         };
 
         match peeked_token_info {
             Some((found_type, line)) if found_type == expected_type => {
-                Ok(self.advance().unwrap()) // Safe to unwrap, we just confirmed it's there and matches
+                Ok(self.advance().unwrap()) 
             }
             Some((found_type, line)) => {
                 self.had_error = true;
@@ -110,12 +102,26 @@ impl Parser {
             }
         }
     }
-    // Entry point for declarations (currently only statements).
-    fn parse_declaration(&mut self) -> Result<Stmt, ParseError> {
-        // In this interpreter, declarations are the same as statements.
-        self.statement()
-    }
 
+    fn parse_declaration(&mut self) -> Result<Stmt, ParseError> {
+        if self.check(TokenType::VAR) {
+          self.var_declaration()
+        } else {
+          self.statement()
+        }
+    }
+    fn var_declaration(&mut self) -> Result<Stmt,ParseError> {
+      self.advance();
+      let name = self.consume(TokenType::IDENTIFIER, "Expect variable name.")?;
+      let initializer = if self.check(TokenType::EQUAL) {
+        self.advance();
+        Some(self.expression()?)
+      } else {
+        None
+      };
+      self.consume(TokenType::SEMICOLON, "Expect ';' after variable declaration.")?;
+      Ok(Stmt::VarDec(name, (initializer)))
+    }
     pub fn parse(&mut self) -> Result<Program, Vec<ParseError>> {
       let mut errors = Vec::new();
       let mut statements = Vec::new();
@@ -148,7 +154,7 @@ impl Parser {
     }
 
     fn print_statement(&mut self) -> Result<Stmt, ParseError> {
-        self.advance(); // Consume PRINT token
+        self.advance(); 
         if self.check(TokenType::SEMICOLON) {
           return Err(ParseError::UnexpectedToken {
               expected: "expression".to_string(),
@@ -171,15 +177,24 @@ impl Parser {
         Ok(Stmt::ExprStmt(Box::new(expr)))
     }
     
-    // Renaming parse_expression to expression for clarity as it's now a part of statement parsing
     fn expression(&mut self) -> Result<Expr, ParseError> {
-        self.parse_equality()
+        self.assignment()
+    }
+    fn assignment(&mut self) -> Result<Expr,ParseError> {
+      let expr = self.parse_equality()?;
+      if self.check(TokenType::EQUAL) {
+        let equals = self.advance().unwrap();
+        let value = self.assignment()?;
+        if let Expr::Variable(name) = &*expr {
+          return Ok(Expr::Assign(name.clone(), Box::new(value)));
+        }
+        return Err(ParseError::InvalidAssignmentTarget { line: name.line });
+      }
+      Ok(expr)
     }
 
-    /// Entry‐point: start at the lowest‐precedence level
-    pub fn parse_expression(&mut self) -> Result<Expr, ParseError> { // This method might be used by REPL or tests
+    pub fn parse_expression(&mut self) -> Result<Expr, ParseError> { 
         let expr = self.parse_equality()?;
-        // For a single expression, we might still want to ensure no trailing tokens other than EOF
         if let Some(token) = self.peek() {
             if token.token_type != TokenType::EOF {
                 return Err(ParseError::UnexpectedToken {
@@ -200,8 +215,6 @@ impl Parser {
               let right =  self.parse_comparison()?;
               expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
             }
-            // Helper to check current token type without consuming
-            // Useful for statement parsing logic
             _ => break, 
         }
        }
@@ -222,33 +235,28 @@ impl Parser {
         }
         Ok(expr)
     }
-    /// addition → multiplication ( ( "+" | "-" ) multiplication )*
     fn parse_addition(&mut self) -> Result<Expr, ParseError> {
-        // 1. Parse the "left" side by delegating to the next‐higher level
+
         let mut expr = self.parse_multiplication()?;
 
-        // 2. As long as we see + or −, consume it and parse another multiplication()
         while let Some(token) = self.peek() {
             match token.token_type {
                 TokenType::PLUS | TokenType::MINUS => {
-                    let operator = self.advance().unwrap();      // we know peek was Some
+                    let operator = self.advance().unwrap();
                     let right = self.parse_multiplication()?;
-                    // combine into a new Binary node, and loop again
                     expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
                 }
-                _ => break,  // no more +/− at this level
+                _ => break,  
             }
         }
 
         Ok(expr)
     }
 
-    /// multiplication → primary ( ( "*" | "/" ) primary )*
     fn parse_multiplication(&mut self) -> Result<Expr, ParseError> {
-        // 1. Parse the "left" side by calling primary() (which already handles unary)
+
         let mut expr = self.primary()?;
 
-        // 2. As long as we see * or /, consume it and parse another primary()
         while let Some(token) = self.peek() {
             match token.token_type {
                 TokenType::STAR | TokenType::SLASH => {
@@ -264,9 +272,8 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
-        if let Some(token) = self.peek() { // Changed advance() to peek() to check before consuming
+        if let Some(token) = self.peek() { 
             let current_line = token.line;
-            // We consume the token only if it's part of a valid primary expression
             match token.token_type {
                 TokenType::FALSE | TokenType::TRUE | TokenType::NIL | 
                 TokenType::NUMBER | TokenType::STRING | TokenType::LEFT_PAREN => {
@@ -300,16 +307,16 @@ impl Parser {
                             }
                         },
                         TokenType::LEFT_PAREN => {
-                            let inner = self.expression()?; // Changed from parse_equality to expression
+                            let inner = self.expression()?; 
                             self.consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.")?;
                             Ok(Expr::Grouping(Box::new(inner)))
                         }
-                        _ => unreachable!(), // Should not happen due to outer match
+                        _ => unreachable!(), 
                     }
                 }
-                TokenType::BANG | TokenType::MINUS => { // Unary operators
-                    let operator_token = self.advance().unwrap(); // Consume operator
-                    let operand = self.primary()?; // Parse the operand (which is a primary expression)
+                TokenType::BANG | TokenType::MINUS => { 
+                    let operator_token = self.advance().unwrap(); 
+                    let operand = self.primary()?; 
                     Ok(Expr::Unary(operator_token, Box::new(operand)))
                 }
                 TokenType::EOF => {
@@ -325,7 +332,6 @@ impl Parser {
         }
     }
 
-    // Helper to check current token type without consuming
     fn check(&mut self, token_type: TokenType) -> bool {
         match self.peek() {
             Some(token) => token.token_type == token_type,
