@@ -1,7 +1,6 @@
-use crate::scanner::Token; // For operator in Binary/Unary expressions
+use crate::scanner::Token; 
 use std::fmt;
 
-// Represents the different kinds of literal values in the AST.
 #[derive(Debug, Clone, PartialEq,)]
 pub enum AstLiteralValue {
     Number(f64),
@@ -10,18 +9,21 @@ pub enum AstLiteralValue {
     Nil,
 }
 
-// Represents expressions in the language.
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(AstLiteralValue),
     Grouping(Box<Expr>),
     Unary(Token, Box<Expr>),
     Binary(Box<Expr>, Token, Box<Expr>), 
+    Variable(Token),
+    Assign(Token, Box<Expr>)
 }
 #[derive(Debug,Clone)]
 pub enum Stmt {
   ExprStmt(Box<Expr>),
-  PrintStmt(Box<Expr>)
+  PrintStmt(Box<Expr>),
+  VarDec(Token,Box<Expr>),
+  Block(Vec<Stmt>),
 }
 #[derive(Debug,Clone)]
 pub struct Program {
@@ -37,6 +39,14 @@ impl fmt::Display for Stmt {
     match self{
       Stmt::ExprStmt(expr) => write!(f, "expr-stmt {}", expr),
       Stmt::PrintStmt(expr) => write!(f, "print-stmt {}",expr),
+      Stmt::VarDec(name, expr) => write!(f, "var {} = {}", name.lexeme, expr),
+      Stmt::Block(statements) => {
+        write!(f, "(block")?;
+        for stmt in statements {
+          write!(f, " {}", stmt)?;
+        }
+        write!(f, ")")
+      }
     }
   }
 }
@@ -59,8 +69,6 @@ impl fmt::Display for AstLiteralValue {
     }
 }
 
-// Helper function to parenthesize expressions for display, common in Lox interpreters.
-// For example, a binary + expression with 1 and 2 would be (+ 1.0 2.0)
 fn parenthesize_operator(f: &mut fmt::Formatter<'_>, operator_lexeme: &str, exprs: &[&Box<Expr>]) -> fmt::Result {
     write!(f, "({}", operator_lexeme)?;
     for expr in exprs {
@@ -87,6 +95,12 @@ impl fmt::Display for Expr {
             }
             Expr::Binary(left_expr, operator_token, right_expr) => {
                 parenthesize_operator(f, &operator_token.lexeme, &[left_expr, right_expr])
+            }
+            Expr::Variable(name) => {
+                write!(f, "{}", name.lexeme)
+            }
+            Expr::Assign(name, value) => {
+                write!(f, "{} = {}", name.lexeme, value)
             }
         }
     }
