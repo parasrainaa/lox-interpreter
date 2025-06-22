@@ -5,6 +5,7 @@ use std::process;
 mod scanner;
 mod ast;
 mod parser;
+mod callable;
 mod interpreter;
 
 use crate::scanner::TokenType;

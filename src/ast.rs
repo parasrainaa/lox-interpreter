@@ -1,29 +1,50 @@
 use crate::scanner::Token; 
 use std::fmt;
+use std::rc::Rc;
+use crate::callable::LoxCallable;
 
-#[derive(Debug, Clone, PartialEq,)]
+#[derive(Debug, Clone)]
 pub enum AstLiteralValue {
     Number(f64),
     StringValue(String),
     Boolean(bool),
     Nil,
+    Callable(Rc<dyn LoxCallable>),
+}
+
+impl PartialEq for AstLiteralValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (AstLiteralValue::Number(a), AstLiteralValue::Number(b)) => a == b,
+            (AstLiteralValue::StringValue(a), AstLiteralValue::StringValue(b)) => a == b,
+            (AstLiteralValue::Boolean(a), AstLiteralValue::Boolean(b)) => a == b,
+            (AstLiteralValue::Nil, AstLiteralValue::Nil) => true,
+            (AstLiteralValue::Callable(a), AstLiteralValue::Callable(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(AstLiteralValue),
     Grouping(Box<Expr>),
-    Unary(Token, Box<Expr>),
+    Unary(Token, Box<Expr>), 
     Binary(Box<Expr>, Token, Box<Expr>), 
     Variable(Token),
-    Assign(Token, Box<Expr>)
+    Assign(Token, Box<Expr>),
+    Call(Box<Expr>, Token, Vec<Expr>),
 }
 #[derive(Debug,Clone)]
 pub enum Stmt {
   ExprStmt(Box<Expr>),
   PrintStmt(Box<Expr>),
-  VarDec(Token,Box<Expr>),
+  VarDec(Token,Option<Box<Expr>>),
   Block(Vec<Stmt>),
+  If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
+  While(Box<Expr>, Box<Stmt>),
+  Function(Token, Vec<Token>, Vec<Stmt>),
+  Return(Option<Box<Expr>>),
 }
 #[derive(Debug,Clone)]
 pub struct Program {
@@ -39,13 +60,39 @@ impl fmt::Display for Stmt {
     match self{
       Stmt::ExprStmt(expr) => write!(f, "expr-stmt {}", expr),
       Stmt::PrintStmt(expr) => write!(f, "print-stmt {}",expr),
-      Stmt::VarDec(name, expr) => write!(f, "var {} = {}", name.lexeme, expr),
+      Stmt::VarDec(name, initializer) => {
+        if let Some(expr) = initializer {
+          write!(f, "var {} = {}", name.lexeme, expr)
+        } else {
+          write!(f, "var {}", name.lexeme)
+        }
+      },
       Stmt::Block(statements) => {
         write!(f, "(block")?;
         for stmt in statements {
           write!(f, " {}", stmt)?;
         }
         write!(f, ")")
+      },
+      Stmt::If(condition, then_branch, else_branch) => {
+        if let Some(else_stmt) = else_branch {
+          write!(f, "(if {} then {} else {})", condition, then_branch, else_stmt)
+        } else {
+          write!(f, "(if {} then {})", condition, then_branch)
+        }
+      },
+      Stmt::While(condition, body) => {
+        write!(f, "(while {} {})", condition, body)
+      },
+      Stmt::Function(name, _params, _body) => {
+        write!(f, "<fn {}>", name.lexeme)
+      },
+      Stmt::Return(expr_opt) => {
+        if let Some(expr) = expr_opt {
+          write!(f, "return {}", expr)
+        } else {
+          write!(f, "return")
+        }
       }
     }
   }
@@ -65,6 +112,7 @@ impl fmt::Display for AstLiteralValue {
             AstLiteralValue::StringValue(s) => write!(f, "{}", s), 
             AstLiteralValue::Boolean(b) => write!(f, "{}", b),
             AstLiteralValue::Nil => write!(f, "nil"),
+            AstLiteralValue::Callable(c) => write!(f, "{}", c.as_ref().to_string()),
         }
     }
 }
@@ -101,6 +149,13 @@ impl fmt::Display for Expr {
             }
             Expr::Assign(name, value) => {
                 write!(f, "{} = {}", name.lexeme, value)
+            }
+            Expr::Call(callee, _paren, arguments) => {
+                write!(f, "(call {}", callee)?;
+                for arg in arguments {
+                    write!(f, " {}", arg)?;
+                }
+                write!(f, ")")
             }
         }
     }
